@@ -1,3 +1,4 @@
+from glob import glob
 from setuptools import setup, find_packages
 
 setup(
@@ -6,7 +7,7 @@ setup(
     description='Generalized Radial Profiles for gas in halos',
     packages=find_packages(),
     package_data={'grapes': ['data/*']},
-    scripts=[],
+    scripts=glob('bin/*'),
     install_requires=[
         'numpy',
         'scipy',
