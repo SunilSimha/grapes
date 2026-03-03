@@ -3,6 +3,8 @@ Class to handle generalized halo profiles.
 """
 
 import numpy as np
+import os
+import matplotlib.pyplot as plt
 from scipy.differentiate import derivative
 from grapes.defs import cosmo
 
@@ -208,4 +210,105 @@ class GrapeNFWProfile(RadialProfile):
         M_dm = self.nfw_profile.mass_enclosed(r)
         
         return self.Omega_ratio * g * M_dm
+    
+    def diagnostic_plots(self, y_range=None, output_dir='.', filename_prefix='grape_diagnostic', 
+                        figsize=(15, 5), dpi=100, show=True):
+        """
+        Generate diagnostic plots for the GRAPE baryon profile.
+        
+        Creates three plots:
+        1. Baryon fraction f_b(y) as a function of y = r/r_s
+        2. Modulation function g(y) as a function of y = r/r_s
+        3. Density profiles: NFW dark matter and GRAPE baryon profiles
+        
+        Parameters
+        ----------
+        y_range : tuple or None, optional
+            Range of y = r/r_s values to plot as (y_min, y_max).
+            If None, defaults to (0.01, 100) (default: None)
+        output_dir : str, optional
+            Directory to save the plots (default: current directory)
+        filename_prefix : str, optional
+            Prefix for the output filenames (default: 'grape_diagnostic')
+        figsize : tuple, optional
+            Figure size (width, height) in inches (default: (15, 5))
+        dpi : int, optional
+            Resolution of saved figures (default: 100)
+        show : bool, optional
+            Whether to display the plots (default: True)
+        
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object containing the plots
+        """
+        # Set default y range
+        if y_range is None:
+            y_range = (0.01, 100)
+        
+        # Generate y values (normalized radius)
+        y_array = np.logspace(np.log10(y_range[0]), np.log10(y_range[1]), 300)
+        
+        # Convert to physical radius
+        r_array = y_array * self.r_s
+        
+        # Compute quantities
+        f_b_values = self.f_b_func(r_array)
+        g_values = self._compute_g(r_array)
+        rho_dm_values = self.nfw_profile.density(r_array) / self.rho_0  # normalized
+        rho_b_values = self.density(r_array) / self.rho_0  # normalized
+        
+        # Create figure with three subplots
+        fig, axs = plt.subplots(1, 3, figsize=figsize, tight_layout=True)
+        plt.rcParams.update({'font.size': 12})
+        
+        # Plot 1: Baryon fraction f_b(y)
+        ax = axs[0]
+        ax.plot(y_array, f_b_values, 'darkviolet', lw=2.5)
+        ax.axhline(self.cosmology.Ob0 / self.cosmology.Om0, 
+                  color='gray', ls='--', lw=2, alpha=0.7,
+                  label=f'Cosmic mean ({self.cosmology.Ob0/self.cosmology.Om0:.3f})')
+        ax.set_xlabel(r'$y = r/r_s$', fontsize=14)
+        ax.set_ylabel(r'$f_b(<r)$', fontsize=14)
+        ax.set_title('Enclosed Baryon Fraction', fontsize=15)
+        ax.set_xscale('log')
+        ax.legend(loc='best', fontsize=11)
+        ax.grid(True, alpha=0.3, which='both')
+        
+        # Plot 2: Modulation function g(y)
+        ax = axs[1]
+        ax.plot(y_array, g_values, 'darkorange', lw=2.5)
+        ax.axhline(1.0, color='gray', ls='--', lw=2, alpha=0.7,
+                  label=r'$g(y) = 1$ (cosmic mean)')
+        ax.set_xlabel(r'$y = r/r_s$', fontsize=14)
+        ax.set_ylabel(r'$g(y)$', fontsize=14)
+        ax.set_title('Modulation Function', fontsize=15)
+        ax.set_xscale('log')
+        ax.legend(loc='best', fontsize=11)
+        ax.grid(True, alpha=0.3, which='both')
+        
+        # Plot 3: Density profiles
+        ax = axs[2]
+        ax.loglog(y_array, rho_dm_values, 'k--', lw=2.5, label='NFW DM profile', alpha=0.8)
+        ax.loglog(y_array, rho_b_values, 'darkblue', lw=2.5, label='GRAPE baryon profile')
+        ax.set_xlabel(r'$y = r/r_s$', fontsize=14)
+        ax.set_ylabel(r'$\rho(y)/\rho_0$', fontsize=14)
+        ax.set_title('Density Profiles', fontsize=15)
+        ax.legend(loc='upper right', fontsize=11)
+        ax.grid(True, alpha=0.3, which='both')
+        
+        # Save figure
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, f'{filename_prefix}.png')
+        fig.savefig(output_path, dpi=dpi, bbox_inches='tight')
+        print(f'Diagnostic plots saved to: {output_path}')
+        
+        # Show if requested
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+        
+        return fig
+    
     
