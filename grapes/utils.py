@@ -34,7 +34,7 @@ def _create_fb_interpolators_general(table, index_col, radius_col, fb_col,
         Scaling factor for f_b values. If callable, applied to fb_data (default: 1.0)
     
     synthetic_multipliers : array-like
-        Multipliers for creating synthetic points beyond data range (default: [1.5, 2.0, 3.0, 5.0, 10.0])
+        Multipliers for creating synthetic points beyond data range (default: np.linspace(1.8, 10))
     
     additional_mask : callable
         Optional function that takes table and index_value and returns additional boolean mask to apply
