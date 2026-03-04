@@ -6,8 +6,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from scipy.differentiate import derivative
-from grapes.defs import cosmo
-
+from .defs import cosmo
 class RadialProfile:
     def __init__(self, r_s, rho_0, redshift=0.0, cosmology=cosmo):
         self.r_s = r_s
@@ -30,6 +29,17 @@ class RadialProfile:
         density_array = self.density(np.sqrt(impact_param**2 + z_array**2))
         return 2*np.trapezoid(density_array, z_array)
 
+def rho_vir(redshift=0.0, cosmology=cosmo):
+    """Calculate the virial density in Msun/pc^3 
+    for a halo of given mass and redshift."""
+
+    q = cosmology.Ode0/(cosmology.Ode0+cosmology.Om0*(1+redshift)**3)
+    rho_vir = (18*np.pi**2-82*q-39*q**2)*cosmology.critical_density(redshift).to_value('Msun/pc**3')
+    return rho_vir
+
+def rho_delta(redshift=0.0, cosmology=cosmo, delta=200):
+    """Calculate the density at a given overdensity delta."""   
+    return delta * cosmology.critical_density(redshift).to_value('Msun/pc**3')
 
 class NFWProfile(RadialProfile):
 
@@ -37,15 +47,13 @@ class NFWProfile(RadialProfile):
                  concentration=7.67,
                  redshift=0.0, cosmology=cosmo):
         
-        self.cosmo = cosmology
         self.concentration = concentration
         self.M_halo = 10**log_M_halo
-        q = self.cosmo.Ode0/(self.cosmo.Ode0+self.cosmo.Om0*(1+self.z)**3) 
-        rho_crit = self.cosmo.critical_density(redshift).to_value('Msun/pc**3')
-        r_vir = (3 * self.M_halo / (4 * np.pi * rho_crit * q))**(1/3)
-        r_s = r_vir / concentration
-        self.rho_0 = rho_crit * q / (concentration**2 * (1 + concentration)**2)
-        super().__init__(r_s, self.rho_0)
+        self.rho_200 = rho_delta(redshift=redshift, cosmology=cosmology, delta=200)
+        r_200 = (3 * self.M_halo / (4 * np.pi * self.rho_200))**(1/3)
+        r_s = r_200 / concentration
+        self.rho_0 = self.M_halo / (4 * np.pi * r_s**3 * (np.log(1 + concentration) - concentration / (1 + concentration)))
+        super().__init__(r_s, self.rho_0, redshift=redshift, cosmology=cosmology)
 
     def density(self, r):
         """Calculate the NFW density at radius r."""
@@ -74,7 +82,8 @@ class GrapeNFWProfile(RadialProfile):
         rho_B(r) = Omega_B/(Omega_M - Omega_B) * [g(r) * rho_DM(r) + (1/(4*pi*r^2)) * dg/dr * M_DM(<r)]
     """
     
-    def __init__(self, log_M_halo_dm, f_b_func, concentration=7.67, 
+    def __init__(self, log_M_halo_dm,
+                 f_b_func, f_b_radius_scale=None, concentration=7.67, 
                  redshift=0.0, cosmology=cosmo):
         """
         Initialize a GRAPE NFW baryon profile.
@@ -84,9 +93,8 @@ class GrapeNFWProfile(RadialProfile):
         log_M_halo : float
             Log10 of the halo mass in solar masses
         f_b_func : callable
-            Function that computes the baryon fraction f_b(r) at radius r (in physical or normalized units).
+            Function that computes the baryon fraction f_b(r) at radius r (in r/r_200).
             Should accept array input and return array output.
-            f_b should be defined such that 0 <= f_b(r) <= Omega_B/Omega_M
         concentration : float, optional
             NFW concentration parameter (default: 7.67)
         redshift : float, optional
@@ -95,6 +103,10 @@ class GrapeNFWProfile(RadialProfile):
             Cosmological model (default: Planck18)
         """
         self.f_b_func = f_b_func
+        if f_b_radius_scale is None:
+            self.f_b_radius_scale = 1.0
+        else:
+            self.f_b_radius_scale = f_b_radius_scale
         self.nfw_profile = NFWProfile(log_M_halo_dm, concentration=concentration, 
                                        redshift=redshift, cosmology=cosmology)
         
@@ -103,9 +115,8 @@ class GrapeNFWProfile(RadialProfile):
                         redshift=redshift, cosmology=cosmology)
         
         # Store cosmological ratios for GRAPE calculations
-        self.Omega_ratio = self.cosmo.Omega_B / (self.cosmo.Om0 - self.cosmo.Omega_B)
-        
-        self.redshift = redshift
+        self.Omega_ratio = self.cosmology.Ob0 / (self.cosmology.Om0 - self.cosmology.Ob0)
+
         self.concentration = concentration
     
     def _compute_g(self, r):
@@ -124,7 +135,7 @@ class GrapeNFWProfile(RadialProfile):
         g : array-like
             Values of g(r)
         """
-        f_b = self.f_b_func(r)
+        f_b = self.f_b_func(r/self.nfw_profile.r_s*self.concentration)
         # Avoid division by zero/infinity
         f_b = np.clip(f_b, 1e-10, 1 - 1e-10)
         return f_b / ((1.0 - f_b) * self.Omega_ratio)
