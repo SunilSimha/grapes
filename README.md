@@ -1,30 +1,29 @@
 # GRAPES
 
-**Generalized Radial Aggregated Profile Estimator for Simulations**
+**GEneralized RAdial ProfilE (GRAPE) framework for halos**
+**THIS PACKAGE IS IN ACTIVE DEVELOPMENT AND NOT YET STABLE. EXPECT API CHANGES.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-A Python package for modeling baryon density profiles in dark matter halos using the GRAPE framework. GRAPE provides a self-consistent method to derive baryon density profiles from observed or simulated baryon fraction profiles, ensuring proper asymptotic behavior and respecting cosmological constraints.
+A Python package for modeling baryon density profiles in dark matter halos using the GRAPE framework. GRAPE provides a self-consistent method to derive baryon density profiles from observed or simulated baryon fraction profiles.
 
 ## Overview
 
-This repository implements the GRAPE (Generalized Radial Aggregated Profile Estimator) framework for describing baryon and dark matter density profiles in halos while ensuring physically motivated baryon to dark matter ratios. Given an arbitrary baryon fraction function $f_b(r)$, GRAPE derives the corresponding baryon density profile $\rho_b(r)$ that is physically consistent with the underlying dark matter distribution.
+This repository implements the GRAPE framework for describing baryon and dark matter density profiles in halos while ensuring physically motivated baryon to dark matter ratios. Given an arbitrary baryon fraction function $f_b(r)$, GRAPE derives the corresponding baryon density profile $\rho_b(r)$ that is physically consistent with the underlying dark matter distribution.
 
 The method uses the relationship:
 
 $$M_B(<r) = g(r) \cdot \frac{\Omega_B}{\Omega_M - \Omega_B} \cdot M_{DM}(<r)$$
 
-where $g(r)$ is derived from the observed $f_b(r)$ profile, ensuring proper asymptotic behavior at large radii and self-consistency throughout the halo.
+where $g(r)$ is derived from the observed baryon fraction $(f_b)$ profile, ensuring proper asymptotic behavior at large radii and self-consistency throughout the halo.
 
 ## Key Features
 
-- **NFW Dark Matter Profiles**: Customizable concentration-mass relations
+- **NFW Dark Matter Profiles**: Customizable concentration-mass relations (TO BE IMPLEMENTED)
 - **GRAPE Baryon Profiles**: Self-consistent baryon density profiles from arbitrary $f_b(r)$ functions
 - **Simulation Data Support**: Built-in utilities for CROCODILE and Ayromlou+2023 simulation data
 - **Column Density Calculations**: Projected column densities for observational comparisons
-- **Diagnostic Plotting**: Comprehensive visualization tools for profile validation
-- **Flexible Interpolation**: Utilities for working with tabulated simulation data
 
 ## Installation
 
