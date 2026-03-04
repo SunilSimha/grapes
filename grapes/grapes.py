@@ -86,7 +86,8 @@ class GrapeNFWProfile(RadialProfile):
     """
     
     def __init__(self, log_M_halo_dm,
-                 f_b_func, f_b_radius_scale=None, concentration=7.67, 
+                 f_b_func, f_b_radius_scale=None,
+                 concentration=7.67, 
                  redshift=0.0, cosmology=cosmo):
         """
         Initialize a GRAPE NFW baryon profile.
@@ -138,7 +139,9 @@ class GrapeNFWProfile(RadialProfile):
         g : array-like
             Values of g(r)
         """
-        f_b = self.f_b_func(r/(self.nfw_profile.r_s*self.concentration))
+
+        # By default, f_b_func is defined in terms of r/r_200. We can apply a radius scaling if needed.
+        f_b = self.f_b_func(r * self.f_b_radius_scale / (self.nfw_profile.r_s * self.concentration))
         # Avoid division by zero/infinity
         f_b = np.clip(f_b, 1e-10, 1 - 1e-10)
         return f_b / ((1.0 - f_b) * self.Omega_ratio)
