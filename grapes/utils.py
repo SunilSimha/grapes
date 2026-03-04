@@ -6,7 +6,100 @@ from grapes.defs import cosmo
 import numpy as np
 from scipy.interpolate import CubicSpline
 
-def create_crocodile_interpolators(table, AGN_label = "f"):
+
+def _create_fb_interpolators_general(table, index_col, radius_col, fb_col, 
+                                     radius_scale=1.0, fb_scale=1.0, 
+                                     synthetic_multipliers=None, additional_mask=None):
+    """
+    General function to create baryon fraction interpolators from simulation data.
+    
+    Parameters:
+    -----------
+    table : astropy.table.Table
+        Table containing the simulation data
+    
+    index_col : str
+        Name of the column that identifies unique halo bins
+    
+    radius_col : str
+        Name of the column containing radius values
+    
+    fb_col : str
+        Name of the column containing baryon fraction values
+    
+    radius_scale : float
+        Scaling factor for radius (default: 1.0)
+    
+    fb_scale : float or callable
+        Scaling factor for f_b values. If callable, applied to fb_data (default: 1.0)
+    
+    synthetic_multipliers : array-like
+        Multipliers for creating synthetic points beyond data range (default: [1.5, 2.0, 3.0, 5.0, 10.0])
+    
+    additional_mask : callable
+        Optional function that takes table and index_value and returns additional boolean mask to apply
+    
+    Returns:
+    --------
+    dict : Dictionary mapping index values to CubicSpline interpolators
+    """
+    if synthetic_multipliers is None:
+        synthetic_multipliers = np.linspace(1.8, 10)
+    
+    f_b_cosmic = cosmo.Ob0 / cosmo.Om0
+    f_b_interpolators = {}
+    
+    # Get unique indices
+    unique_indices = np.unique(table[index_col])
+    
+    for idx in unique_indices:
+        # Base mask for this index
+        mask = table[index_col] == idx
+        
+        # Apply additional mask if provided
+        if additional_mask is not None:
+            mask = mask & additional_mask(table, idx)
+        
+        # Extract and scale data
+        radius_data = np.array(table[radius_col][mask]) * radius_scale
+        fb_data = np.array(table[fb_col][mask])
+        
+        # Apply fb scaling
+        if callable(fb_scale):
+            fb_data = fb_scale(fb_data)
+        else:
+            fb_data = fb_data * fb_scale
+        
+        if len(radius_data) < 3:
+            print(f'Skipping index={idx} due to insufficient data points')
+            continue
+        
+        # Sort data
+        sort_idx = np.argsort(radius_data)
+        radius_data = radius_data[sort_idx]
+        fb_data = fb_data[sort_idx]
+        
+        # Add synthetic points at large radii to asymptote to cosmic mean
+        radius_max = radius_data[-1]
+        radius_synthetic = radius_max * synthetic_multipliers
+        fb_synthetic = np.full_like(radius_synthetic, f_b_cosmic)
+        
+        radius_extended = np.concatenate([radius_data, radius_synthetic])
+        fb_extended = np.concatenate([fb_data, fb_synthetic])
+        
+        # Estimate slopes for boundary conditions
+        slope_left = (fb_data[1] - fb_data[0]) / (radius_data[1] - radius_data[0])
+        slope_right = 0.0  # Zero slope at large radius
+        
+        # Create CubicSpline with extended data and boundary conditions
+        f_b_interpolators[idx] = CubicSpline(radius_extended, fb_extended,
+                                             bc_type=((1, slope_left), (1, slope_right)),
+                                             extrapolate=True)
+    
+    return f_b_interpolators
+
+
+def create_crocodile_interpolators(table, radius_scale=1.0, AGN_label="f"):
     """
     Create interpolation functions for f_b from CROCODILE simulation data.
     
@@ -14,6 +107,8 @@ def create_crocodile_interpolators(table, AGN_label = "f"):
     -----------
     table : astropy.table.Table
         Table containing CROCODILE data with columns logM_lo, R_over_R200, fb_med_norm
+    radius_scale : float
+        Scaling factor for radius (default is 1.0, which means R/R200 as input to interpolator)
     
     AGN_label : str
         Label for the AGN type to select in the table (default is "f" for "fiducial")
@@ -23,84 +118,42 @@ def create_crocodile_interpolators(table, AGN_label = "f"):
     --------
     dict : Dictionary mapping logM_lo values to CubicSpline interpolators
     """
-    f_b_interpolators = {}
+    def agn_mask(table, idx):
+        return table['label_AGN'] == AGN_label
     
-    # Get unique halo mass bins
-    unique_logM = np.unique(table['logM_lo'])
-    
-    for logM in unique_logM:
-        # Extract data for this halo mass bin
-        mask = (table['logM_lo'] == logM) & (table['label_AGN'] == AGN_label)
-        R_data = np.array(table['R_over_R200'][mask])
-        fb_data = np.array(table['fb_med_norm'][mask])
-        
-        # Convert normalized f_b to actual f_b
-        # fb_med_norm is f_b / f_b_cosmic, so multiply by cosmic baryon fraction
-        fb_data = fb_data * cosmo.Ob0 / cosmo.Om0
-        
-        if len(R_data) < 3:
-            print(f'Skipping logM={logM:.1f} due to insufficient data points')
-            continue
-        
-        # Sort data
-        sort_idx = np.argsort(R_data)
-        R_data = R_data[sort_idx]
-        fb_data = fb_data[sort_idx]
-        
-        # Estimate slopes for boundary conditions
-        slope_left = (fb_data[1] - fb_data[0]) / (R_data[1] - R_data[0])
-        slope_right = 0.0  # Asymptote to constant at large radius
-        
-        # Create CubicSpline with boundary conditions
-        f_b_interpolators[logM] = CubicSpline(R_data, fb_data,
-                                              bc_type=((1, slope_left), (1, slope_right)),
-                                              extrapolate=True)
-    
-    return f_b_interpolators
+    return _create_fb_interpolators_general(
+        table,
+        index_col='logM_lo',
+        radius_col='R_over_R200',
+        fb_col='fb_med_norm',
+        radius_scale=radius_scale,
+        fb_scale=cosmo.Ob0 / cosmo.Om0,
+        additional_mask=agn_mask
+    )
 
-def create_A23_interpolators(table):
+
+def create_A23_interpolators(table, radius_scale=1.0):
     """
-    Create interpolation functions for f_b from CROCODILE simulation data.
+    Create interpolation functions for f_b from Ayromlou+2023 simulation data.
+    
     Parameters:
     -----------
     table : astropy.table.Table
-        Table containing CROCODILE data with columns 'halo_mass_index', 'x=R/R200c', and 'y=f_b(<R)/f_b,cosmic'
+        Table containing Ayromlou+2023 data with columns 'halo_mass_index', 'x=R/R200c', and 'y=f_b(<R)/f_b,cosmic'
+    radius_scale : float
+        Scaling factor for radius (default is 1.0, which means R/R200c as input to interpolator)
+    table : astropy.table.Table
+        Table containing data with columns 'halo_mass_index', 'x=R/R200c', and 'y=f_b(<R)/f_b,cosmic'
+    
     Returns:
     --------
     dict : Dictionary mapping halo_mass_index values to CubicSpline interpolators
     """
-    # Dictionary to store interpolating functions for each halo_mass_index
-    f_b_interpolators = {}
-
-    # Get unique halo mass indices from the table
-    unique_halo_mass_indices = np.unique(table['halo_mass_index'])
-
-    for idx in unique_halo_mass_indices:  # loop over halo mass indices
-        mask = table['halo_mass_index'] == idx
-        y_data = np.array(table['x=R/R200c'][mask]) * 1
-        f_data = np.array(table['y=f_b(<R)/f_b,cosmic'][mask]) * cosmo.Ob0 / cosmo.Om0
-        
-        if len(y_data) < 3:
-            print(f'Skipping interpolation for halo_mass_index={idx} due to insufficient data points')
-            continue
-        
-        # Sort data by y_data to ensure proper ordering
-        sort_idx = np.argsort(y_data)
-        y_data = y_data[sort_idx]
-        f_data = f_data[sort_idx]
-        
-        # Estimate the slope at the smallest radius (left boundary)
-        # Using finite difference between first two points
-        slope_left = (f_data[1] - f_data[0]) / (y_data[1] - y_data[0])
-        
-        # Set right boundary derivative to 0 (as y → inf)
-        slope_right = 0.0
-        
-        # Create a CubicSpline with specified boundary conditions
-        # bc_type allows us to set first derivatives at boundaries
-        # bc_type format: ((order_at_left, value_at_left), (order_at_right, value_at_right))
-        # order=1 means first derivative
-        f_b_interpolators[idx] = CubicSpline(y_data, f_data, 
-                                            bc_type=((1, slope_left), (1, slope_right)), extrapolate=True)
-
-    return f_b_interpolators
+    return _create_fb_interpolators_general(
+        table,
+        index_col='halo_mass_index',
+        radius_col='x=R/R200c',
+        radius_scale=radius_scale,
+        fb_col='y=f_b(<R)/f_b,cosmic',
+        fb_scale=cosmo.Ob0 / cosmo.Om0
+    )
