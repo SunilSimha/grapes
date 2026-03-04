@@ -164,8 +164,6 @@ class GrapeNFWProfile(RadialProfile):
         ----------
         r : array-like
             Radius values
-        step : float, optional
-            Step size for numerical differentiation (default: 1e-6)
         
         Returns
         -------
