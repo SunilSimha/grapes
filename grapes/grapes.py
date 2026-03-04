@@ -28,6 +28,16 @@ class RadialProfile(ABC):
     def column_density(self, impact_param, R_trunc, n_steps=1000):
         """Calculate the column density at projected radius R."""
         # This is a placeholder implementation. The actual integral should be computed.
+        if impact_param > R_trunc:
+            raise ValueError(
+            f"Invalid geometry: impact parameter ({impact_param}) exceeds "
+            f"truncation radius ({R_trunc}). Column density is undefined."
+            )
+        
+        if impact_param == R_trunc:
+            # Edge case: line of sight is tangent to the truncation sphere
+            return 0.0
+        
         z_array = np.linspace(0, np.sqrt(R_trunc**2 - impact_param**2), n_steps)
         density_array = self.density(np.sqrt(impact_param**2 + z_array**2))
         return 2*np.trapezoid(density_array, z_array)
