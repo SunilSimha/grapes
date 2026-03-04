@@ -138,7 +138,7 @@ class GrapeNFWProfile(RadialProfile):
         g : array-like
             Values of g(r)
         """
-        f_b = self.f_b_func(r/self.nfw_profile.r_s*self.concentration)
+        f_b = self.f_b_func(r/(self.nfw_profile.r_s*self.concentration))
         # Avoid division by zero/infinity
         f_b = np.clip(f_b, 1e-10, 1 - 1e-10)
         return f_b / ((1.0 - f_b) * self.Omega_ratio)
