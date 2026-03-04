@@ -278,7 +278,7 @@ class GrapeNFWProfile(RadialProfile):
         r_array = y_array * self.r_s
         
         # Compute quantities
-        f_b_values = self.f_b_func(r_array)
+        f_b_values = self.f_b_func(r_array * self.f_b_radius_scale / (self.nfw_profile.r_s * self.concentration))
         g_values = self._compute_g(r_array)
         rho_dm_values = self.nfw_profile.density(r_array) / self.rho_0  # normalized
         rho_b_values = self.density(r_array) / self.rho_0  # normalized
