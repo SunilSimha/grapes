@@ -63,17 +63,22 @@ def _create_fb_interpolators_general(table, index_col, radius_col, fb_col,
         # Extract and scale data
         radius_data = np.array(table[radius_col][mask]) * radius_scale
         fb_data = np.array(table[fb_col][mask])
-        
+
         # Apply fb scaling
         if callable(fb_scale):
             fb_data = fb_scale(fb_data)
         else:
             fb_data = fb_data * fb_scale
-        
+
+        # Filter out non-finite values in radius and f_b
+        finite_mask = np.isfinite(radius_data) & np.isfinite(fb_data)
+        radius_data = radius_data[finite_mask]
+        fb_data = fb_data[finite_mask]
+
+        # Require at least three finite data points to build a reliable spline
         if len(radius_data) < 3:
-            print(f'Skipping index={idx} due to insufficient data points')
+            print(f'Skipping index={idx} due to insufficient finite data points')
             continue
-        
         # Sort data
         sort_idx = np.argsort(radius_data)
         radius_data = radius_data[sort_idx]
