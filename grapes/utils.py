@@ -147,8 +147,6 @@ def create_A23_interpolators(table, radius_scale=1.0):
         Table containing Ayromlou+2023 data with columns 'halo_mass_index', 'x=R/R200c', and 'y=f_b(<R)/f_b,cosmic'
     radius_scale : float
         Scaling factor for radius (default is 1.0, which means R/R200c as input to interpolator)
-    table : astropy.table.Table
-        Table containing data with columns 'halo_mass_index', 'x=R/R200c', and 'y=f_b(<R)/f_b,cosmic'
     
     Returns:
     --------
