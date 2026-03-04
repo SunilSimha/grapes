@@ -7,20 +7,23 @@ import os
 import matplotlib.pyplot as plt
 from scipy.differentiate import derivative
 from .defs import cosmo
-class RadialProfile:
+from abc import ABC, abstractmethod
+class RadialProfile(ABC):
     def __init__(self, r_s, rho_0, redshift=0.0, cosmology=cosmo):
         self.r_s = r_s
         self.rho_0 = rho_0
         self.redshift = redshift
         self.cosmology = cosmology
 
+    @abstractmethod
     def density(self, r):
         """Calculate the density at a given radius r."""
-        pass
+        raise NotImplementedError("Subclasses of RadialProfile must implement density()")
 
+    @abstractmethod
     def mass_enclosed(self, r):
         """Calculate the mass enclosed within radius r."""
-        pass
+        raise NotImplementedError("Subclasses of RadialProfile must implement mass_enclosed()")
 
     def column_density(self, impact_param, R_trunc, n_steps=1000):
         """Calculate the column density at projected radius R."""
