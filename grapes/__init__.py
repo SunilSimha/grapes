@@ -17,6 +17,7 @@ Key Features
 Example Usage
 -------------
 >>> from grapes import GrapeNFWProfile
+>>> import numpy as np
 >>> 
 >>> # Define a baryon fraction function
 >>> def my_fb_func(r):
