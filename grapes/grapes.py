@@ -30,8 +30,10 @@ class RadialProfile(ABC):
         Vectorized calculation. Handles array inputs for impact_param and
         R_trunc."""
 
+        scalar_input = np.isscalar(impact_param) and np.isscalar(R_trunc)
+
         impact_param = np.atleast_1d(impact_param)
-        R_trunc = np.asarray(R_trunc)
+        R_trunc = np.atleast_1d(R_trunc)
         impact_param, R_trunc = np.broadcast_arrays(impact_param, R_trunc)
 
         with np.errstate(invalid='ignore'):
@@ -45,7 +47,11 @@ class RadialProfile(ABC):
                 self.density(np.sqrt(impact_param**2 + z_array**2)),
                 0.0,
             )
-        return 2 * np.trapezoid(density_array, z_array, axis=0)
+        result = 2 * np.trapezoid(density_array, z_array, axis=0)
+        if scalar_input:
+            return result.item()
+        return result
+    
 
 def rho_vir(redshift=0.0, cosmology=cosmo):
     """Calculate the virial density in Msun/pc^3 
