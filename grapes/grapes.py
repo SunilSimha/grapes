@@ -40,7 +40,7 @@ class RadialProfile(ABC):
             z_array = np.where(
                 impact_param < R_trunc,
                 np.linspace(0, np.sqrt(R_trunc**2 - impact_param**2), n_steps),
-                np.nan,
+                0.0,
             )
             density_array = np.where(
                 impact_param < R_trunc,
@@ -51,20 +51,6 @@ class RadialProfile(ABC):
         if scalar_input:
             return result.item()
         return result
-    
-
-def rho_vir(redshift=0.0, cosmology=cosmo):
-    """Calculate the virial density in Msun/pc^3 
-    for a halo of given mass and redshift."""
-
-    q = cosmology.Ode0/(cosmology.Ode0+cosmology.Om0*(1+redshift)**3)
-    rho_vir = (18*np.pi**2-82*q-39*q**2)*cosmology.critical_density(redshift).to_value('Msun/pc**3')
-    return rho_vir
-
-def rho_delta(redshift=0.0, cosmology=cosmo, delta=200):
-    """Calculate the density at a given overdensity delta."""   
-    return delta * cosmology.critical_density(redshift).to_value('Msun/pc**3')
-
 class NFWProfile(RadialProfile):
 
     def __init__(self, log_M_halo,
@@ -347,4 +333,14 @@ class GrapeNFWProfile(RadialProfile):
         
         return fig
     
-    
+def rho_vir(redshift=0.0, cosmology=cosmo):
+    """Calculate the virial density in Msun/pc^3 
+    for a halo of given mass and redshift."""
+
+    q = cosmology.Ode0/(cosmology.Ode0+cosmology.Om0*(1+redshift)**3)
+    rho_vir = (18*np.pi**2-82*q-39*q**2)*cosmology.critical_density(redshift).to_value('Msun/pc**3')
+    return rho_vir
+
+def rho_delta(redshift=0.0, cosmology=cosmo, delta=200):
+    """Calculate the density at a given overdensity delta."""   
+    return delta * cosmology.critical_density(redshift).to_value('Msun/pc**3')
