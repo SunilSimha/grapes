@@ -26,34 +26,31 @@ class RadialProfile(ABC):
         raise NotImplementedError("Subclasses of RadialProfile must implement mass_enclosed()")
 
     def column_density(self, impact_param, R_trunc, n_steps=1000):
-        """Calculate the column density at projected radius R."""
-        # This is a placeholder implementation. The actual integral should be computed.
-        if impact_param > R_trunc:
-            raise ValueError(
-            f"Invalid geometry: impact parameter ({impact_param}) exceeds "
-            f"truncation radius ({R_trunc}). Column density is undefined."
+        """Calculate the column density at projected radius R.
+        Vectorized calculation. Handles array inputs for impact_param and
+        R_trunc."""
+
+        scalar_input = np.isscalar(impact_param) and np.isscalar(R_trunc)
+
+        impact_param = np.atleast_1d(impact_param)
+        R_trunc = np.atleast_1d(R_trunc)
+        impact_param, R_trunc = np.broadcast_arrays(impact_param, R_trunc)
+
+        with np.errstate(invalid='ignore'):
+            z_array = np.where(
+                impact_param < R_trunc,
+                np.linspace(0, np.sqrt(R_trunc**2 - impact_param**2), n_steps),
+                0.0,
             )
-        
-        if impact_param == R_trunc:
-            # Edge case: line of sight is tangent to the truncation sphere
-            return 0.0
-        
-        z_array = np.linspace(0, np.sqrt(R_trunc**2 - impact_param**2), n_steps)
-        density_array = self.density(np.sqrt(impact_param**2 + z_array**2))
-        return 2*np.trapezoid(density_array, z_array)
-
-def rho_vir(redshift=0.0, cosmology=cosmo):
-    """Calculate the virial density in Msun/pc^3 
-    for a halo of given mass and redshift."""
-
-    q = cosmology.Ode0/(cosmology.Ode0+cosmology.Om0*(1+redshift)**3)
-    rho_vir = (18*np.pi**2-82*q-39*q**2)*cosmology.critical_density(redshift).to_value('Msun/pc**3')
-    return rho_vir
-
-def rho_delta(redshift=0.0, cosmology=cosmo, delta=200):
-    """Calculate the density at a given overdensity delta."""   
-    return delta * cosmology.critical_density(redshift).to_value('Msun/pc**3')
-
+            density_array = np.where(
+                impact_param < R_trunc,
+                self.density(np.sqrt(impact_param**2 + z_array**2)),
+                0.0,
+            )
+        result = 2 * np.trapezoid(density_array, z_array, axis=0)
+        if scalar_input:
+            return result.item()
+        return result
 class NFWProfile(RadialProfile):
 
     def __init__(self, log_M_halo,
@@ -336,4 +333,14 @@ class GrapeNFWProfile(RadialProfile):
         
         return fig
     
-    
+def rho_vir(redshift=0.0, cosmology=cosmo):
+    """Calculate the virial density in Msun/pc^3 
+    for a halo of given mass and redshift."""
+
+    q = cosmology.Ode0/(cosmology.Ode0+cosmology.Om0*(1+redshift)**3)
+    rho_vir = (18*np.pi**2-82*q-39*q**2)*cosmology.critical_density(redshift).to_value('Msun/pc**3')
+    return rho_vir
+
+def rho_delta(redshift=0.0, cosmology=cosmo, delta=200):
+    """Calculate the density at a given overdensity delta."""   
+    return delta * cosmology.critical_density(redshift).to_value('Msun/pc**3')
