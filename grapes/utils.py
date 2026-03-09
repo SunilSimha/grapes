@@ -4,12 +4,27 @@ Utils for handling grape profiles and related computations.
 
 from grapes.defs import cosmo
 import numpy as np
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import (
+    CubicSpline,
+    PchipInterpolator,
+    Akima1DInterpolator,
+    CubicHermiteSpline,
+    BarycentricInterpolator,
+    KroghInterpolator,
+)
+
+# FloaterHormannInterpolator was added in scipy 1.13.0
+try:
+    from scipy.interpolate import FloaterHormannInterpolator
+    HAS_FLOATER_HORMANN = True
+except ImportError:
+    HAS_FLOATER_HORMANN = False
 
 
 def _create_fb_interpolators_general(table, index_col, radius_col, fb_col, 
                                      radius_scale=1.0, fb_scale=1.0, 
-                                     synthetic_multipliers=None, additional_mask=None):
+                                     synthetic_multipliers=None, additional_mask=None,
+                                     interpolator_type='PchipInterpolator', spline_args=None):
     """
     General function to create baryon fraction interpolators from simulation data.
     
@@ -39,9 +54,18 @@ def _create_fb_interpolators_general(table, index_col, radius_col, fb_col,
     additional_mask : callable
         Optional function that takes table and index_value and returns additional boolean mask to apply
     
+    interpolator_type : str
+        Type of interpolator to use (default: 'PchipInterpolator')
+        Options: 'CubicSpline', 'PchipInterpolator', 'Akima1DInterpolator',
+                 'CubicHermiteSpline', 'BarycentricInterpolator', 
+                 'KroghInterpolator', 'FloaterHormannInterpolator'
+    
+    spline_args : dict or None
+        Additional keyword arguments to pass to the interpolator constructor (default: None)
+    
     Returns:
     --------
-    dict : Dictionary mapping index values to CubicSpline interpolators
+    dict : Dictionary mapping index values to interpolator objects of the specified type
     """
     if synthetic_multipliers is None:
         synthetic_multipliers = np.linspace(1.8, 10)
@@ -96,15 +120,93 @@ def _create_fb_interpolators_general(table, index_col, radius_col, fb_col,
         slope_left = (fb_data[1] - fb_data[0]) / (radius_data[1] - radius_data[0])
         slope_right = 0.0  # Zero slope at large radius
         
-        # Create CubicSpline with extended data and boundary conditions
-        f_b_interpolators[idx] = CubicSpline(radius_extended, fb_extended,
-                                             bc_type=((1, slope_left), (1, slope_right)),
-                                             extrapolate=True)
+        if spline_args is None:
+            spline_args = {}
+
+        # Create interpolator based on specified type
+        if interpolator_type == 'CubicSpline':
+            # CubicSpline supports explicit boundary conditions
+            interp_kwargs = {'bc_type': ((1, slope_left), (1, slope_right)), 'extrapolate': True}
+            interp_kwargs.update(spline_args)
+            f_b_interpolators[idx] = CubicSpline(radius_extended, fb_extended, **interp_kwargs)
+        
+        elif interpolator_type == 'CubicHermiteSpline':
+            # CubicHermiteSpline requires explicit derivatives at all points
+            slopes = np.gradient(fb_extended, radius_extended)
+            slopes[0] = slope_left
+            slopes[-1] = slope_right
+            interp_kwargs = {'extrapolate': True}
+            interp_kwargs.update(spline_args)
+            f_b_interpolators[idx] = CubicHermiteSpline(
+                radius_extended, fb_extended, dydx=slopes, **interp_kwargs
+            )
+        
+        elif interpolator_type in ['PchipInterpolator', 'Akima1DInterpolator', 
+                                    'BarycentricInterpolator', 'KroghInterpolator',
+                                    'FloaterHormannInterpolator']:
+            # These interpolators don't have explicit boundary condition support,
+            # so we add anchor points to enforce endpoint slopes
+            if interpolator_type == 'FloaterHormannInterpolator' and not HAS_FLOATER_HORMANN:
+                raise ImportError(
+                    "FloaterHormannInterpolator requires scipy >= 1.13.0. "
+                    "Please upgrade scipy or choose a different interpolator."
+                )
+            
+            if len(radius_extended) > 1:
+                dx_left = radius_extended[1] - radius_extended[0]
+                dx_right = radius_extended[-1] - radius_extended[-2]
+            else:
+                dx_left = dx_right = max(radius_extended[0] * 1e-3, 1e-6)
+
+            left_x = radius_extended[0] - dx_left
+            left_y = fb_extended[0] - slope_left * dx_left
+            right_x = radius_extended[-1] + dx_right
+            right_y = fb_extended[-1] + slope_right * dx_right
+
+            radius_augmented = np.concatenate([[left_x], radius_extended, [right_x]])
+            fb_augmented = np.concatenate([[left_y], fb_extended, [right_y]])
+            
+            # Build interpolator based on type
+            if interpolator_type == 'PchipInterpolator':
+                interp_kwargs = {'extrapolate': True}
+                interp_kwargs.update(spline_args)
+                f_b_interpolators[idx] = PchipInterpolator(
+                    radius_augmented, fb_augmented, **interp_kwargs
+                )
+            elif interpolator_type == 'Akima1DInterpolator':
+                interp_kwargs = {'extrapolate': True, 'method': 'makima'}
+                interp_kwargs.update(spline_args)
+                f_b_interpolators[idx] = Akima1DInterpolator(
+                    radius_augmented, fb_augmented, **interp_kwargs
+                )
+            elif interpolator_type == 'BarycentricInterpolator':
+                # BarycentricInterpolator doesn't support extrapolate parameter
+                f_b_interpolators[idx] = BarycentricInterpolator(
+                    radius_augmented, fb_augmented, **spline_args
+                )
+            elif interpolator_type == 'KroghInterpolator':
+                # KroghInterpolator doesn't support extrapolate parameter
+                f_b_interpolators[idx] = KroghInterpolator(
+                    radius_augmented, fb_augmented, **spline_args
+                )
+            elif interpolator_type == 'FloaterHormannInterpolator':
+                # FloaterHormannInterpolator doesn't support extrapolate parameter
+                f_b_interpolators[idx] = FloaterHormannInterpolator(
+                    radius_augmented, fb_augmented, **spline_args
+                )
+        else:
+            raise ValueError(
+                f"Unknown interpolator_type: {interpolator_type}. "
+                f"Supported types: 'CubicSpline', 'PchipInterpolator', 'Akima1DInterpolator', "
+                f"'CubicHermiteSpline', 'BarycentricInterpolator', 'KroghInterpolator', "
+                f"'FloaterHormannInterpolator'"
+            )
     
     return f_b_interpolators
 
 
-def create_crocodile_interpolators(table, radius_scale=1.0, AGN_label="f"):
+def create_crocodile_interpolators(table, radius_scale=1.0, AGN_label="f",
+                                  interpolator_type='PchipInterpolator', spline_args=None):
     """
     Create interpolation functions for f_b from CROCODILE simulation data.
     
@@ -119,9 +221,15 @@ def create_crocodile_interpolators(table, radius_scale=1.0, AGN_label="f"):
         Label for the AGN type to select in the table (default is "f" for "fiducial")
         Allowed values are "f", and "n".
     
+    interpolator_type : str
+        Type of interpolator to use (default: 'PchipInterpolator')
+    
+    spline_args : dict or None
+        Additional keyword arguments to pass to the interpolator constructor
+    
     Returns:
     --------
-    dict : Dictionary mapping logM_lo values to CubicSpline interpolators
+    dict : Dictionary mapping logM_lo values to interpolator objects
     """
     def agn_mask(table, idx):
         return table['label_AGN'] == AGN_label
@@ -133,11 +241,14 @@ def create_crocodile_interpolators(table, radius_scale=1.0, AGN_label="f"):
         fb_col='fb_med_norm',
         radius_scale=radius_scale,
         fb_scale=cosmo.Ob0 / cosmo.Om0,
-        additional_mask=agn_mask
+        additional_mask=agn_mask,
+        interpolator_type=interpolator_type,
+        spline_args=spline_args
     )
 
 
-def create_A23_interpolators(table, radius_scale=1.0):
+def create_A23_interpolators(table, radius_scale=1.0, 
+                            interpolator_type='PchipInterpolator', spline_args=None):
     """
     Create interpolation functions for f_b from Ayromlou+2023 simulation data.
     
@@ -148,9 +259,15 @@ def create_A23_interpolators(table, radius_scale=1.0):
     radius_scale : float
         Scaling factor for radius (default is 1.0, which means R/R200c as input to interpolator)
     
+    interpolator_type : str
+        Type of interpolator to use (default: 'PchipInterpolator')
+    
+    spline_args : dict or None
+        Additional keyword arguments to pass to the interpolator constructor
+    
     Returns:
     --------
-    dict : Dictionary mapping halo_mass_index values to CubicSpline interpolators
+    dict : Dictionary mapping halo_mass_index values to interpolator objects
     """
     return _create_fb_interpolators_general(
         table,
@@ -158,5 +275,7 @@ def create_A23_interpolators(table, radius_scale=1.0):
         radius_col='x=R/R200c',
         radius_scale=radius_scale,
         fb_col='y=f_b(<R)/f_b,cosmic',
-        fb_scale=cosmo.Ob0 / cosmo.Om0
+        fb_scale=cosmo.Ob0 / cosmo.Om0,
+        interpolator_type=interpolator_type,
+        spline_args=spline_args
     )

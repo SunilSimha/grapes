@@ -238,10 +238,11 @@ class GrapeNFWProfile(RadialProfile):
         """
         Generate diagnostic plots for the GRAPE baryon profile.
         
-        Creates three plots:
+        Creates  plots:
         1. Baryon fraction f_b(y) as a function of y = r/r_s
         2. Modulation function g(y) as a function of y = r/r_s
         3. Density profiles: NFW dark matter and GRAPE baryon profiles
+
         
         Parameters
         ----------
