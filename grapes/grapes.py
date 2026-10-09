@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from scipy.differentiate import derivative
 from .defs import cosmo
 from abc import ABC, abstractmethod
+from scipy import integrate
 class RadialProfile(ABC):
     def __init__(self, r_s, rho_0, redshift=0.0, cosmology=cosmo):
         self.r_s = r_s
@@ -335,28 +336,50 @@ class GrapeNFWProfile(RadialProfile):
 
 class gNFWProfile(RadialProfile):
 
-    def __init__(self, rclose, radius, rvir, ain, atr, aout, M, z, n_e0, gamma, beta, cosmicfrac=cosmo.Ob0/cosmo.Om/0,concentration):
-        self.cosmology=cosmo
+    def __init__(self, rclose, rvir, ain, atr, aout, M_vir, z, gamma, beta, cosmicfrac=cosmo.Ob0/cosmo.Om/0):
+        super().__init__()
         self.rclose=rclose
-        self.radius=radius
         self.ain=ain
         self.atr=atr
         self.aout=aout
-        self.M=M
+        self.M_vir=M_vir
         self.z=z
-        self.n_e0=n_e0
         self.gamma=gamma
         self.beta=beta
         self.cosmicfrac= cosmicfrac
         self.rvir=rvir
-        self.concentration=concentration
 
-    def density(self, radius, M, z):
-        x=self.rvir/self.concentration
-        xs=radius/x
+        """
+        Initialize a general NFW Profile.
+
+        Parameters:
+        ------------
+        rclose : float
+            closure radius, (units : pc)
+        rvir : float
+            virial radius, (units : pc)
+        ain : float
+            inner power law paramter
+        atr : float
+            transition power law paramter
+        aout : float
+            outer power law parameter
+        M_vir : float
+            200 overdensity virial mass, (units : 10^(12) solar masses)
+        gamma : float
+            power law dependency for hubbles parameter
+        beta : float
+            power law dependency for mass
+        cosmicfrac : float
+            mean cosmic baryon mass to total mass ratio
+        """
+
+
+    def density(self, radius, z):
+        x=radius/self.xs
         E=self.cosmology.efunc(z)
-        radial=(xs**(-self.ain)*(1+xs**(self.atr))**((self.ain-self.aout)/self.atr))
-        return self.n_e0*radial*E**(self.gamma)*M**(self.beta)
+        radial=(x**(-self.ain)*(1+x**(self.atr))**((self.ain-self.aout)/self.atr))
+        return radial*E**(self.gamma)*self.M_vir**(self.beta)
 
     # def mass_enclosed(self,rclose):
 
@@ -367,7 +390,7 @@ class gNFWProfile(RadialProfile):
     def electrondensity(self,rclose):
 
         integrand=lambda r_prime: 4*np.pi*self.density(r_prime, self.M, self.z)*r_prime**(2)
-        integral, _ =integrate.quad(integrand,0,rclose)
+        integral, _ = integrate.quad(integrand,0,rclose)
         return  (self.M*self.cosmicfrac)/(integral)
 
 def rho_vir(redshift=0.0, cosmology=cosmo):
