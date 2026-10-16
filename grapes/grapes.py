@@ -387,19 +387,19 @@ class gNFWProfile(RadialProfile):
         else:
             raise ValueError("Input Valid Model")
 
-    def electrondensity(self, radius):
+    def density(self, radius):
         x=radius/self.r_s
         E=self.cosmology.efunc(self.redshift)
         radial=(x**(-self.ain))*((1+x**(self.atr))**((self.ain-self.aout)/self.atr))
         return radial*E**(self.gamma)*self.M_vir**(self.beta)
 
     def mass_enclosed(self):
-        integrand=lambda r_prime: 4*np.pi*self.electrondensity(r_prime)*r_prime**(2)
+        integrand=lambda r_prime: 4*np.pi*self.density(r_prime)*r_prime**(2)
         integral, _ =integrate.quad(integrand,0,self.rclose)
         return integral
 
     def amplitude(self):
-        integrand=lambda r_prime: 4*np.pi*self.electrondensity(r_prime)*r_prime**(2)
+        integrand=lambda r_prime: 4*np.pi*self.density(r_prime)*r_prime**(2)
         integral, _ = integrate.quad(integrand,0,self.rclose)
         return  (self.M_vir*self.cosmicfrac)/(integral)
 
