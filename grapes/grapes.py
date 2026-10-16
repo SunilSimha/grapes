@@ -336,62 +336,69 @@ class GrapeNFWProfile(RadialProfile):
 
 class gNFWProfile(RadialProfile):
 
-    def __init__(self, rclose, rvir, ain, atr, aout, M_vir, z, gamma, beta, cosmicfrac=cosmo.Ob0/cosmo.Om/0):
-        super().__init__()
-        self.rclose=rclose
-        self.ain=ain
-        self.atr=atr
-        self.aout=aout
-        self.M_vir=M_vir
-        self.z=z
-        self.gamma=gamma
-        self.beta=beta
-        self.cosmicfrac= cosmicfrac
-        self.rvir=rvir
-
+    def __init__(self, r_s, redshift, cosmology, rclose, r_vir, M_vir, model, cosmicfrac=cosmo.Ob0/cosmo.Om0, rho_0=None):
         """
         Initialize a general NFW Profile.
 
         Parameters:
         ------------
+
         rclose : float
             closure radius, (units : pc)
-        rvir : float
+        r_vir : float
             virial radius, (units : pc)
-        ain : float
-            inner power law paramter
-        atr : float
-            transition power law paramter
-        aout : float
-            outer power law parameter
         M_vir : float
             200 overdensity virial mass, (units : 10^(12) solar masses)
-        gamma : float
-            power law dependency for hubbles parameter
-        beta : float
-            power law dependency for mass
+        model: string
+            the DPM model. Sets values of ain, atr, aout, gamma, and beta
         cosmicfrac : float
             mean cosmic baryon mass to total mass ratio
         """
 
+        super().__init__(r_s, rho_0, redshift, cosmology)
+        self.rclose=rclose
+        self.model=model
+        self.M_vir=M_vir
 
-    def density(self, radius, z):
-        x=radius/self.xs
-        E=self.cosmology.efunc(z)
-        radial=(x**(-self.ain)*(1+x**(self.atr))**((self.ain-self.aout)/self.atr))
+        self.cosmicfrac= cosmicfrac
+        self.r_vir=r_vir
+
+        if model== "Self-Similar":
+            self.ain=1
+            self.atr=1.9
+            self.aout=2.7
+            self.gamma=2
+            self.beta=0
+        elif model== "Cluster-Reduced":
+            self.ain=1
+            self.atr=1.9
+            self.aout=2.7
+            self.gamma=2
+            self.beta=0.36
+        elif model== "Slope-Changing":
+            self.ain=0.4
+            self.atr=0.45
+            self.aout=0.5
+            self.gamma=2
+            self.beta=0.36
+        else:
+            raise ValueError("Input Valid Model")
+
+    def electrondensity(self, radius):
+        x=radius/self.r_s
+        E=self.cosmology.efunc(self.redshift)
+        radial=(x**(-self.ain))*((1+x**(self.atr))**((self.ain-self.aout)/self.atr))
         return radial*E**(self.gamma)*self.M_vir**(self.beta)
 
-    # def mass_enclosed(self,rclose):
+    def mass_enclosed(self):
+        integrand=lambda r_prime: 4*np.pi*self.electrondensity(r_prime)*r_prime**(2)
+        integral, _ =integrate.quad(integrand,0,self.rclose)
+        return integral
 
-    #     integrand=lambda r_prime: 4*np.pi*self.density(r_prime, self.M, self.z)*r_prime**(2)
-    #     integral, _ =integrate.quad(integrand,0,rclose)
-    #     return integral
-
-    def electrondensity(self,rclose):
-
-        integrand=lambda r_prime: 4*np.pi*self.density(r_prime, self.M, self.z)*r_prime**(2)
-        integral, _ = integrate.quad(integrand,0,rclose)
-        return  (self.M*self.cosmicfrac)/(integral)
+    def amplitude(self):
+        integrand=lambda r_prime: 4*np.pi*self.electrondensity(r_prime)*r_prime**(2)
+        integral, _ = integrate.quad(integrand,0,self.rclose)
+        return  (self.M_vir*self.cosmicfrac)/(integral)
 
 def rho_vir(redshift=0.0, cosmology=cosmo):
     """Calculate the virial density in Msun/pc^3
