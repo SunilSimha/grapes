@@ -336,7 +336,7 @@ class GrapeNFWProfile(RadialProfile):
 
 class gNFWProfile(RadialProfile):
 
-    def __init__(self, r_s, redshift, rclose, r_vir, M_vir, model, cosmicfrac=cosmo.Ob0/cosmo.Om0, rho_0=None, cosmology=cosmo):
+    def __init__(self, r_s, redshift, rclose, r_vir, M_vir, impactp, model, cosmicfrac=cosmo.Ob0/cosmo.Om0, rho_0=None, cosmology=cosmo):
         """
         Initialize a general NFW Profile.
 
@@ -352,6 +352,8 @@ class gNFWProfile(RadialProfile):
             virial radius, (units : pc)
         M_vir : float
             200 overdensity virial mass, (units : 10^(12) solar masses)
+        impactp: float
+            impact parameter, (units : pc)
         model: string
             the DPM model. Sets values of ain, atr, aout, gamma, and beta
         cosmicfrac : float
@@ -359,31 +361,32 @@ class gNFWProfile(RadialProfile):
         """
 
         super().__init__(r_s, rho_0, redshift, cosmology)
-        self.rclose=rclose
-        self.model=model
-        self.M_vir=M_vir
+        self.rclose= rclose
+        self.model= model
+        self.M_vir= M_vir
+        self.impactp=impactp
 
         self.cosmicfrac= cosmicfrac
-        self.r_vir=r_vir
+        self.r_vir= r_vir
 
         if model== "Self-Similar":
-            self.ain=1
-            self.atr=1.9
-            self.aout=2.7
-            self.gamma=2
-            self.beta=0
+            self.ain= 1
+            self.atr= 1.9
+            self.aout= 2.7
+            self.gamma= 2
+            self.beta= 0
         elif model== "Cluster-Reduced":
-            self.ain=1
-            self.atr=1.9
-            self.aout=2.7
-            self.gamma=2
-            self.beta=0.36
+            self.ain= 1
+            self.atr= 1.9
+            self.aout= 2.7
+            self.gamma= 2
+            self.beta= 0.36
         elif model== "Slope-Changing":
-            self.ain=0.4
-            self.atr=0.45
-            self.aout=0.5
-            self.gamma=2
-            self.beta=0.36
+            self.ain= 0.4
+            self.atr= 0.45
+            self.aout= 0.5
+            self.gamma= 2
+            self.beta= 0.36
         else:
             raise ValueError("Input Valid Model")
 
@@ -395,12 +398,12 @@ class gNFWProfile(RadialProfile):
 
     def mass_enclosed(self):
         integrand=lambda r_prime: 4*np.pi*self.density(r_prime)*r_prime**(2)
-        integral, _ =integrate.quad(integrand,0,self.rclose)
+        integral, _ =integrate.quad(integrand,self.impactp,self.rclose)
         return integral
 
     def amplitude(self):
         integrand=lambda r_prime: 4*np.pi*self.density(r_prime)*r_prime**(2)
-        integral, _ = integrate.quad(integrand,0,self.rclose)
+        integral, _ = integrate.quad(integrand,self.impactp,self.rclose)
         return  (self.M_vir*self.cosmicfrac)/(integral)
 
 def rho_vir(redshift=0.0, cosmology=cosmo):
