@@ -9,6 +9,8 @@ from scipy.differentiate import derivative
 from .defs import cosmo
 from abc import ABC, abstractmethod
 from scipy import integrate
+import astropy.units as u
+
 class RadialProfile(ABC):
     def __init__(self, r_s, rho_0, redshift=0.0, cosmology=cosmo):
         self.r_s = r_s
@@ -404,7 +406,9 @@ class gNFWProfile(RadialProfile):
     def amplitude(self):
         integrand=lambda r_prime: 4*np.pi*self.density(r_prime)*r_prime**(2)
         integral, _ = integrate.quad(integrand,self.impactp,self.rclose)
-        return  (self.M_vir*self.cosmicfrac)/(integral)
+        M_virkg=((self.M_vir*10**(12))*u.Msun).to(u.kg).value
+        amplitude=(M_virkg*self.cosmicfrac)/(integral)
+        return (amplitude*u.kg/u.pc**(3)).to(u.g/u.cm**(3))
 
 def rho_vir(redshift=0.0, cosmology=cosmo):
     """Calculate the virial density in Msun/pc^3
