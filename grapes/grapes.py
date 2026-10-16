@@ -336,13 +336,16 @@ class GrapeNFWProfile(RadialProfile):
 
 class gNFWProfile(RadialProfile):
 
-    def __init__(self, r_s, redshift, cosmology, rclose, r_vir, M_vir, model, cosmicfrac=cosmo.Ob0/cosmo.Om0, rho_0=None):
+    def __init__(self, r_s, redshift, rclose, r_vir, M_vir, model, cosmicfrac=cosmo.Ob0/cosmo.Om0, rho_0=None, cosmology=cosmo):
         """
         Initialize a general NFW Profile.
 
         Parameters:
         ------------
-
+        r_s: float
+            scale radius, (units:pc)
+        redshift: float
+            redshift
         rclose : float
             closure radius, (units : pc)
         r_vir : float
