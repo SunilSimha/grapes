@@ -409,7 +409,7 @@ class gNFWProfile(RadialProfile):
         amplitude=(M_virkg*self.cosmicfrac)/(integral)
         return (amplitude*u.kg/u.pc**(3)).to(u.g/u.cm**(3))
 
-    def physicaldensity(self,radius):
+    def physical_density(self,radius):
         return self.amplitude()*self.density(radius)
 
 
