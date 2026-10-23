@@ -338,7 +338,7 @@ class GrapeNFWProfile(RadialProfile):
 
 class gNFWProfile(RadialProfile):
 
-    def __init__(self, r_s, redshift, rclose, r_vir, M_vir, model, cosmicfrac=cosmo.Ob0/cosmo.Om0, rho_0=None, cosmology=cosmo):
+    def __init__(self, r_s, redshift, rclose, r_vir, M_vir, model, aout=None, cosmicfrac=cosmo.Ob0/cosmo.Om0, rho_0=None, cosmology=cosmo):
         """
         Initialize a general NFW Profile.
 
@@ -356,6 +356,8 @@ class gNFWProfile(RadialProfile):
             200 overdensity virial mass, (units : 10^(12) solar masses)
         model: string
             the DPM model. Sets values of ain, atr, aout, gamma, and beta
+        aout: float
+            outer power-law transition parameter
         cosmicfrac : float
             mean cosmic baryon mass to total mass ratio
         """
@@ -371,19 +373,19 @@ class gNFWProfile(RadialProfile):
         if model== "Self-Similar":
             self.ain= 1
             self.atr= 1.9
-            self.aout= 2.7
+            self.aout= aout if aout is not None else 2.7
             self.gamma= 2
             self.beta= 0
         elif model== "Cluster-Reduced":
             self.ain= 1
             self.atr= 1.9
-            self.aout= 2.7
+            self.aout= aout if aout is not None else 2.7
             self.gamma= 2
             self.beta= 0.36
         elif model== "Slope-Changing":
             self.ain= 0.4
             self.atr= 0.45
-            self.aout= 0.5
+            self.aout= aout if aout is not None else 0.5
             self.gamma= 2
             self.beta= 0.36
         else:
@@ -395,9 +397,9 @@ class gNFWProfile(RadialProfile):
         radial=(x**(-self.ain))*((1+x**(self.atr))**((self.ain-self.aout)/self.atr))
         return radial*E**(self.gamma)*self.M_vir**(self.beta)
 
-    def mass_enclosed(self):
+    def mass_enclosed(self, radius):
         integrand=lambda r_prime: 4*np.pi*self.density(r_prime)*r_prime**(2)
-        integral, _ =integrate.quad(integrand,0,self.rclose)
+        integral, _ =integrate.quad(integrand,0,radius)
         return integral
 
     def amplitude(self):
@@ -406,6 +408,12 @@ class gNFWProfile(RadialProfile):
         M_virkg=((self.M_vir*10**(12))*u.Msun).to(u.kg).value
         amplitude=(M_virkg*self.cosmicfrac)/(integral)
         return (amplitude*u.kg/u.pc**(3)).to(u.g/u.cm**(3))
+
+    def physicaldensity(self,radius):
+        return self.amplitude()*self.density(radius)
+
+
+
 
 def rho_vir(redshift=0.0, cosmology=cosmo):
     """Calculate the virial density in Msun/pc^3
